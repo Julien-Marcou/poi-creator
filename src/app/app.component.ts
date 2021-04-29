@@ -23,6 +23,7 @@ export class AppComponent implements AfterViewInit {
       center: { lat: 46.4675751, lng: 5.8919042 },
       zoom: 11,
       clickableIcons: false,
+      gestureHandling: 'greedy',
       styles: [
         {
           featureType: 'poi.business',
