@@ -45,5 +45,12 @@
       </div>
     </ng-template>
 
+    <div class="form">
+      <label class="button" for="upload-gpx-file">
+        Importer un fichier GPX
+      </label>
+      <input type="file" id="upload-gpx-file" (change)="importsGpxFile($event)">
+    </div>
+
   </div>
 </div>
