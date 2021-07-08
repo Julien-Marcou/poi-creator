@@ -62,8 +62,8 @@ export class AppComponent implements AfterViewInit {
         },
       ],
     });
-    this.map.addListener('click', (event) => {
-      this.addPointOfInterest(event.latLng);
+    this.map.addListener('click', (event: google.maps.MapMouseEvent) => {
+      this.addPointOfInterest(event.latLng!);
     });
   }
 
