@@ -1,9 +1,9 @@
-import { AfterViewInit, Component, ElementRef, ViewChild } from '@angular/core';
+import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 
 type PointOfInterest = {
-  index: number,
-  name?: string,
-  marker: google.maps.Marker,
+  index: number;
+  name?: string;
+  marker: google.maps.Marker;
 };
 
 @Component({
@@ -11,15 +11,15 @@ type PointOfInterest = {
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss'],
 })
-export class AppComponent implements AfterViewInit {
+export class AppComponent implements OnInit {
 
-  @ViewChild('mapElement') mapElement?: ElementRef;
+  @ViewChild('mapElement', {static: true}) private mapElement!: ElementRef<HTMLElement>;
 
-  private map?: google.maps.Map;
   public pointsOfInterest: Array<PointOfInterest> = [];
+  private map!: google.maps.Map;
 
-  ngAfterViewInit() {
-    this.map = new google.maps.Map(this.mapElement!.nativeElement, {
+  public ngOnInit(): void {
+    this.map = new google.maps.Map(this.mapElement.nativeElement, {
       center: { lat: 46.4675751, lng: 5.8919042 },
       zoom: 11,
       clickableIcons: false,
@@ -63,11 +63,13 @@ export class AppComponent implements AfterViewInit {
       ],
     });
     this.map.addListener('click', (event: google.maps.MapMouseEvent) => {
-      this.addPointOfInterest(event.latLng!);
+      if (event.latLng) {
+        this.addPointOfInterest(event.latLng);
+      }
     });
   }
 
-  addPointOfInterest(latLng: google.maps.LatLng, name?: string): void {
+  public addPointOfInterest(latLng: google.maps.LatLng, name?: string): void {
     const poi: PointOfInterest = {
       index: this.pointsOfInterest.length,
       name: name,
@@ -85,28 +87,33 @@ export class AppComponent implements AfterViewInit {
     this.pointsOfInterest.push(poi);
   }
 
-  removePointOfInterest(poi: PointOfInterest): void {
-    this.pointsOfInterest.splice(poi.index, 1);
-    poi.marker.setMap(null);
-    this.pointsOfInterest.forEach((_poi, index) => {
-      if (index >= poi.index) {
-        _poi.index = index;
-        _poi.marker.setLabel((index + 1).toString());
+  public removePointOfInterest(poiToRemove: PointOfInterest): void {
+    this.pointsOfInterest.splice(poiToRemove.index, 1);
+    poiToRemove.marker.setMap(null);
+    this.pointsOfInterest.forEach((poi, index) => {
+      if (index >= poiToRemove.index) {
+        poi.index = index;
+        poi.marker.setLabel((index + 1).toString());
       }
     });
   }
 
-  exportPointsOfInterest(): void {
-    const pointsOfInterest = this.pointsOfInterest.map(poi => {
+  public exportPointsOfInterest(): void {
+    const pointsOfInterest = this.pointsOfInterest.map((poi) => {
+      const markerPosition = poi.marker.getPosition();
+      if (!markerPosition) {
+        console.error('Marker has no position');
+        return;
+      }
       return {
         name: poi.name,
-        latitude: poi.marker.getPosition()!.lat(),
-        longitude: poi.marker.getPosition()!.lng(),
-      }
+        latitude: markerPosition.lat(),
+        longitude: markerPosition.lng(),
+      };
     });
     const pointsOfInterestBlob = new Blob(
       [JSON.stringify(pointsOfInterest, null, 2)],
-      {type: 'text/plain'}
+      {type: 'text/plain'},
     );
     const downloadLink = document.createElement('a');
     downloadLink.setAttribute('href', URL.createObjectURL(pointsOfInterestBlob));
@@ -117,14 +124,20 @@ export class AppComponent implements AfterViewInit {
     document.body.removeChild(downloadLink);
   }
 
-  importsGpxFile(event: Event): void {
-    const file = (event.target as HTMLInputElement).files![0];
+  public importsGpxFile(event: Event): void {
+    const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) {
+      console.error('No file found');
       return;
     }
     const reader = new FileReader();
-    reader.onload = (_event: ProgressEvent<FileReader>) => {
-      const gpxDocument = new DOMParser().parseFromString(_event.target!.result!.toString(), 'text/xml');
+    reader.onload = (progressEvent): void => {
+      const result = progressEvent.target?.result?.toString();
+      if (!result) {
+        console.error('Reader has no result');
+        return;
+      }
+      const gpxDocument = new DOMParser().parseFromString(result, 'text/xml');
       const parserErrorElement = gpxDocument.querySelector('parsererror');
       if (parserErrorElement) {
         console.error(`XML Parser Error :\n${parserErrorElement.textContent}`);
@@ -167,13 +180,12 @@ export class AppComponent implements AfterViewInit {
         strokeColor: '#fff',
         strokeOpacity: 1.0,
         strokeWeight: 7,
-      })
+      });
       const trailPoints = [];
-      for (let i = 0; i < trackPoints.length; i++) {
-        const trackPoint = trackPoints[i];
-        const latitude = parseFloat(trackPoint.getAttribute('lat')!);
-        const longitude = parseFloat(trackPoint.getAttribute('lon')!);
-        const elevation = parseFloat(trackPoint.querySelector('ele')!.textContent!);
+      for (const trackPoint of trackPoints) {
+        const latitude = parseFloat(trackPoint.getAttribute('lat') ?? '0');
+        const longitude = parseFloat(trackPoint.getAttribute('lon') ?? '0');
+        const elevation = parseFloat(trackPoint.querySelector('ele')?.textContent ?? '0');
         const point = new google.maps.LatLng(latitude, longitude);
         if (elevation < minElevation) {
           minElevation = elevation;
@@ -186,21 +198,21 @@ export class AppComponent implements AfterViewInit {
           point: point,
         });
         masterPolyline.getPath().push(point);
-        masterPolyline.setMap(this.map!);
+        masterPolyline.setMap(this.map);
       }
 
       const elevationPolylines = [];
       for (let i = 1; i < trailPoints.length; i++) {
-        const elevation = trailPoints[i].elevation - trailPoints[i - 1].elevation;
-        const step = (((trailPoints[i - 1].elevation + trailPoints[i].elevation) / 2) - minElevation) * (100 / (maxElevation - minElevation));
+        const averageElevation = (trailPoints[i - 1].elevation + trailPoints[i].elevation) / 2;
+        const step = (averageElevation - minElevation) * (100 / (maxElevation - minElevation));
         let minColor = gradient[0];
         let maxColor = gradient[gradient.length - 1];
-        for (const color of gradient) {
-          if (color.step <= step && color.step > minColor.step) {
-            minColor = color;
+        for (const gradientColor of gradient) {
+          if (gradientColor.step <= step && gradientColor.step > minColor.step) {
+            minColor = gradientColor;
           }
-          if (color.step >= step && color.step < maxColor.step) {
-            maxColor = color;
+          if (gradientColor.step >= step && gradientColor.step < maxColor.step) {
+            maxColor = gradientColor;
           }
         }
         let color = {
@@ -231,14 +243,23 @@ export class AppComponent implements AfterViewInit {
     reader.readAsText(file, 'UTF-8');
   }
 
-  importPointsOfInterst(event: Event): void {
-    const file = (event.target as HTMLInputElement).files![0];
+  public importPointsOfInterst(event: Event): void {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) {
+      console.error('No file found');
+      return;
+    }
     const reader = new FileReader();
-    reader.onload = (_event: ProgressEvent<FileReader>) => {
+    reader.onload = (progressEvent): void => {
       try {
-        const pointsOfInterest = JSON.parse(_event.target!.result!.toString());
+        const result = progressEvent.target?.result?.toString();
+        if (!result) {
+          console.error('Reader has no result');
+          return;
+        }
+        const pointsOfInterest = JSON.parse(result);
         if (Array.isArray(pointsOfInterest)) {
-          pointsOfInterest.forEach(poi => {
+          pointsOfInterest.forEach((poi) => {
             if (poi.latitude && poi.longitude) {
               this.addPointOfInterest(new google.maps.LatLng(poi.latitude, poi.longitude), poi.name);
             }
@@ -252,8 +273,13 @@ export class AppComponent implements AfterViewInit {
     reader.readAsText(file, 'UTF-8');
   }
 
-  copyPointOfInterestToClipboard(poi: PointOfInterest): void {
-    navigator.clipboard.writeText(`${poi.marker.getPosition()!.lat()}, ${poi.marker.getPosition()!.lng()}`);
+  public copyPointOfInterestToClipboard(poi: PointOfInterest): void {
+    const markerPosition = poi.marker.getPosition();
+    if (!markerPosition) {
+      console.error('Marker has no position');
+      return;
+    }
+    navigator.clipboard.writeText(`${markerPosition.lat()}, ${markerPosition.lng()}`);
   }
 
 }
