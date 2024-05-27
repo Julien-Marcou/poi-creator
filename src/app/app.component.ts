@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnIn
 type PointOfInterest = {
   index: number;
   name?: string;
-  position: google.maps.LatLng;
+  position: google.maps.LatLngLiteral;
   marker: google.maps.marker.AdvancedMarkerElement;
 };
 
@@ -78,7 +78,7 @@ export class AppComponent implements OnInit {
     const poi: PointOfInterest = {
       index: this.pointsOfInterest.length,
       name: name,
-      position: latLng,
+      position: { lat: latLng.lat(), lng: latLng.lng() },
       marker: new google.maps.marker.AdvancedMarkerElement({
         zIndex: 1000000 - Math.trunc(latLng.lat() * 10000),
         content: new  google.maps.marker.PinElement({ glyph: (this.pointsOfInterest.length + 1).toString() }).element,
@@ -89,6 +89,13 @@ export class AppComponent implements OnInit {
     };
     poi.marker.addListener('click', () => {
       this.removePointOfInterest(poi);
+    });
+    poi.marker.addListener('drag', () => {
+      const lat = (poi.marker.position as google.maps.LatLngLiteral).lat;
+      const lng = (poi.marker.position as google.maps.LatLngLiteral).lng;
+      poi.position.lat = lat;
+      poi.position.lng = lng;
+      this.cd.detectChanges();
     });
     this.pointsOfInterest.push(poi);
     this.cd.detectChanges();
@@ -109,8 +116,8 @@ export class AppComponent implements OnInit {
   public exportPointsOfInterest(): void {
     const pointsOfInterest = this.pointsOfInterest.map((poi) => ({
       name: poi.name,
-      latitude: poi.position.lat(),
-      longitude: poi.position.lng(),
+      latitude: poi.position.lat,
+      longitude: poi.position.lng,
     }));
     const pointsOfInterestBlob = new Blob(
       [JSON.stringify(pointsOfInterest, null, 2)],
@@ -275,8 +282,8 @@ export class AppComponent implements OnInit {
   }
 
   public copyPointOfInterestToClipboard(poi: PointOfInterest, round?: number, asXml?: boolean): void {
-    let lat = poi.position.lat();
-    let lng = poi.position.lng();
+    let lat = poi.position.lat;
+    let lng = poi.position.lng;
     if (round !== undefined && round >= 0) {
       const multiplier = Math.pow(10, round);
       lat = Math.round(lat * multiplier) / multiplier;
