@@ -274,10 +274,21 @@ export class AppComponent implements OnInit {
     reader.readAsText(file, 'UTF-8');
   }
 
-  public copyPointOfInterestToClipboard(poi: PointOfInterest): void {
-    const lat = poi.position.lat();
-    const lng = poi.position.lng();
-    navigator.clipboard.writeText(`${lat}, ${lng}`);
+  public copyPointOfInterestToClipboard(poi: PointOfInterest, round?: number, asXml?: boolean): void {
+    let lat = poi.position.lat();
+    let lng = poi.position.lng();
+    if (round !== undefined && round >= 0) {
+      const multiplier = Math.pow(10, round);
+      lat = Math.round(lat * multiplier) / multiplier;
+      lng = Math.round(lng * multiplier) / multiplier;
+    }
+
+    if (asXml) {
+      navigator.clipboard.writeText(`lat="${lat}" lng="${lng}"`);
+    }
+    else {
+      navigator.clipboard.writeText(`${lat}, ${lng}`);
+    }
   }
 
 }
