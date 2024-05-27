@@ -7,11 +7,18 @@ type PointOfInterest = {
   marker: google.maps.marker.AdvancedMarkerElement;
 };
 
+type TrailPoint = {
+  elevation: number;
+  position: google.maps.LatLng;
+};
+
 type Track = {
   index: number;
   name?: string;
+  points: Array<TrailPoint>;
   masterPolyline: google.maps.Polyline;
   elevationPolylines: Array<google.maps.Polyline>;
+  isEditing: boolean;
 };
 
 @Component({
@@ -121,6 +128,19 @@ export class AppComponent implements OnInit {
     this.cd.detectChanges();
   }
 
+  public toggleGpxEdition(track: Track): void {
+    track.isEditing = !track.isEditing;
+    if (track.isEditing) {
+      track.masterPolyline.setEditable(true);
+      track.masterPolyline.setOptions({ strokeColor: '#000' });
+    }
+    else {
+      track.masterPolyline.setEditable(false);
+      track.masterPolyline.setOptions({ strokeColor: '#fff' });
+    }
+    this.cd.detectChanges();
+  }
+
   public removeGpxTrack(trackToRemove: Track): void {
     this.gpxTracks.splice(trackToRemove.index, 1);
     trackToRemove.masterPolyline.setMap(null);
@@ -173,106 +193,47 @@ export class AppComponent implements OnInit {
       }
 
       const trackPoints = gpxDocument.getElementsByTagName('trkpt');
-      const gradient = [
-        {
-          red: 0,
-          green: 198,
-          blue: 255,
-          step: 0,
-        },
-        {
-          red: 147,
-          green: 85,
-          blue: 255,
-          step: 33,
-        },
-        {
-          red: 255,
-          green: 0,
-          blue: 0,
-          step: 66,
-        },
-        {
-          red: 0,
-          green: 0,
-          blue: 0,
-          step: 100,
-        },
-      ];
-      let minElevation = Number.POSITIVE_INFINITY;
-      let maxElevation = Number.NEGATIVE_INFINITY;
-      const masterPolyline = new google.maps.Polyline({
-        zIndex: 0,
-        geodesic: true,
-        clickable: false,
-        strokeColor: '#fff',
-        strokeOpacity: 1.0,
-        strokeWeight: 7,
-      });
-      const trailPoints = [];
+      const trailPoints: Array<TrailPoint> = [];
       for (const trackPoint of trackPoints) {
         const latitude = parseFloat(trackPoint.getAttribute('lat') ?? '0');
         const longitude = parseFloat(trackPoint.getAttribute('lon') ?? '0');
         const elevation = parseFloat(trackPoint.querySelector('ele')?.textContent ?? '0');
-        const point = new google.maps.LatLng(latitude, longitude);
-        if (elevation < minElevation) {
-          minElevation = elevation;
-        }
-        else if (elevation > maxElevation) {
-          maxElevation = elevation;
-        }
         trailPoints.push({
           elevation: elevation,
-          point: point,
+          position: new google.maps.LatLng(latitude, longitude),
         });
-        masterPolyline.getPath().push(point);
-        masterPolyline.setMap(this.map);
       }
 
-      const elevationPolylines = [];
-      for (let i = 1; i < trailPoints.length; i++) {
-        const averageElevation = (trailPoints[i - 1].elevation + trailPoints[i].elevation) / 2;
-        const step = (averageElevation - minElevation) * (100 / (maxElevation - minElevation));
-        let minColor = gradient[0];
-        let maxColor = gradient[gradient.length - 1];
-        for (const gradientColor of gradient) {
-          if (gradientColor.step <= step && gradientColor.step > minColor.step) {
-            minColor = gradientColor;
-          }
-          if (gradientColor.step >= step && gradientColor.step < maxColor.step) {
-            maxColor = gradientColor;
-          }
-        }
-        let color = {
-          red: maxColor.red,
-          green: maxColor.green,
-          blue: maxColor.blue,
-        };
-        if (minColor !== maxColor) {
-          const multiplier = (step - minColor.step) * 100 / (maxColor.step - minColor.step);
-          color = {
-            red: Math.round(minColor.red + (maxColor.red - minColor.red) * multiplier / 100),
-            green: Math.round(minColor.green + (maxColor.green - minColor.green) * multiplier / 100),
-            blue: Math.round(minColor.blue + (maxColor.blue - minColor.blue) * multiplier / 100),
-          };
-        }
-        elevationPolylines.push(new google.maps.Polyline({
-          zIndex: 1,
-          map: this.map,
-          path: [trailPoints[i - 1].point, trailPoints[i].point],
-          geodesic: true,
-          clickable: false,
-          strokeColor: `#${color.red.toString(16).padStart(2, '0')}${color.green.toString(16).padStart(2, '0')}${color.blue.toString(16).padStart(2, '0')}`,
-          strokeOpacity: 1.0,
-          strokeWeight: 3,
-        }));
-      }
-
-      this.gpxTracks.push({
+      const masterPolyline = this.getMasterPolyline(trailPoints);
+      const track = {
         index: this.gpxTracks.length,
+        points: trailPoints,
         masterPolyline: masterPolyline,
-        elevationPolylines: elevationPolylines,
+        elevationPolylines: this.getElevationPolylines(trailPoints),
+        isEditing: false,
+      };
+
+      const updatePolylines = (): void => {
+        track.elevationPolylines.forEach((polyline) => polyline.setMap(null));
+        track.elevationPolylines = this.getElevationPolylines(trailPoints);
+        this.cd.detectChanges();
+      };
+
+      masterPolyline.getPath().addListener('insert_at', (index: number) => {
+        const newPosition = masterPolyline.getPath().getAt(index);
+        const averageElevation = (trailPoints[index - 1].elevation + trailPoints[index].elevation) / 2;
+        trailPoints.splice(index, 0, { elevation: averageElevation, position: newPosition });
+        updatePolylines();
       });
+      masterPolyline.getPath().addListener('set_at', () => {
+        const positions = masterPolyline.getPath().getArray();
+        positions.forEach((position, index) => {
+          trailPoints[index].position = position;
+        });
+        updatePolylines();
+      });
+
+      this.gpxTracks.push(track);
       this.cd.detectChanges();
     };
     reader.readAsText(file, 'UTF-8');
@@ -323,6 +284,105 @@ export class AppComponent implements OnInit {
     else {
       navigator.clipboard.writeText(`${lat}, ${lng}`);
     }
+  }
+
+  private getMasterPolyline(trailPoints: Array<TrailPoint>): google.maps.Polyline {
+    const masterPolyline = new google.maps.Polyline({
+      zIndex: 0,
+      geodesic: true,
+      clickable: false,
+      strokeColor: '#fff',
+      strokeOpacity: 1.0,
+      strokeWeight: 7,
+    });
+
+    for (const trailPoint of trailPoints) {
+      masterPolyline.getPath().push(trailPoint.position);
+      masterPolyline.setMap(this.map);
+    }
+
+    return masterPolyline;
+  }
+
+  private getElevationPolylines(trailPoints: Array<TrailPoint>): Array<google.maps.Polyline> {
+    const gradient = [
+      {
+        red: 0,
+        green: 198,
+        blue: 255,
+        step: 0,
+      },
+      {
+        red: 147,
+        green: 85,
+        blue: 255,
+        step: 33,
+      },
+      {
+        red: 255,
+        green: 0,
+        blue: 0,
+        step: 66,
+      },
+      {
+        red: 0,
+        green: 0,
+        blue: 0,
+        step: 100,
+      },
+    ];
+
+    let minElevation = Number.POSITIVE_INFINITY;
+    let maxElevation = Number.NEGATIVE_INFINITY;
+    for (const trailPoint of trailPoints) {
+      if (trailPoint.elevation < minElevation) {
+        minElevation = trailPoint.elevation;
+      }
+      else if (trailPoint.elevation > maxElevation) {
+        maxElevation = trailPoint.elevation;
+      }
+    }
+
+    const elevationPolylines = [];
+    for (let i = 1; i < trailPoints.length; i++) {
+      const averageElevation = (trailPoints[i - 1].elevation + trailPoints[i].elevation) / 2;
+      const step = (averageElevation - minElevation) * (100 / (maxElevation - minElevation));
+      let minColor = gradient[0];
+      let maxColor = gradient[gradient.length - 1];
+      for (const gradientColor of gradient) {
+        if (gradientColor.step <= step && gradientColor.step > minColor.step) {
+          minColor = gradientColor;
+        }
+        if (gradientColor.step >= step && gradientColor.step < maxColor.step) {
+          maxColor = gradientColor;
+        }
+      }
+      let color = {
+        red: maxColor.red,
+        green: maxColor.green,
+        blue: maxColor.blue,
+      };
+      if (minColor !== maxColor) {
+        const multiplier = (step - minColor.step) * 100 / (maxColor.step - minColor.step);
+        color = {
+          red: Math.round(minColor.red + (maxColor.red - minColor.red) * multiplier / 100),
+          green: Math.round(minColor.green + (maxColor.green - minColor.green) * multiplier / 100),
+          blue: Math.round(minColor.blue + (maxColor.blue - minColor.blue) * multiplier / 100),
+        };
+      }
+      elevationPolylines.push(new google.maps.Polyline({
+        zIndex: 1,
+        map: this.map,
+        path: [trailPoints[i - 1].position, trailPoints[i].position],
+        geodesic: true,
+        clickable: false,
+        strokeColor: `#${color.red.toString(16).padStart(2, '0')}${color.green.toString(16).padStart(2, '0')}${color.blue.toString(16).padStart(2, '0')}`,
+        strokeOpacity: 1.0,
+        strokeWeight: 3,
+      }));
+    }
+
+    return elevationPolylines;
   }
 
 }

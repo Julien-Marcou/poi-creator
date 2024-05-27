@@ -43,8 +43,8 @@
             <input placeholder="Nom du tracé GPX" [(ngModel)]="gpx.name">
           </div>
           <div class="actions">
-            <button class="edit" title="Editer ce Tracé GPX">
-              <span class="material-icons">edit</span>
+            <button class="edit" title="Editer ce Tracé GPX" (click)="toggleGpxEdition(gpx)">
+              <span class="material-icons">{{ gpx.isEditing ? 'edit_off' : 'edit' }}</span>
             </button>
             <button class="download" title="Télécharger ce Tracé GPX">
               <span class="material-icons">download</span>
