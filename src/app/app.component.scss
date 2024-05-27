@@ -48,9 +48,9 @@
   }
 }
 
-.points-of-interest {
+.points-of-interest, .gpx-tracks {
 
-  .poi {
+  .poi, .track {
     display: flex;
     padding: 0.7rem 1rem;
     align-items: center;
@@ -72,16 +72,14 @@
       margin-right: 1rem;
     }
 
-    .coordinates {
-      flex: 0 0 auto;
-      text-align: right;
-      // font-family: 'Ubuntu Mono', monospace;
-    }
-
     .actions {
+      display: flex;
+      align-items: center;
       margin-left: 1rem;
 
       button {
+        display: flex;
+        align-items: center;
         line-height: 26px;
         margin: 0.1rem;
         padding: 0.4rem 0.6rem;
@@ -103,14 +101,6 @@
           font-family: 'Ubuntu Mono', monospace;
         }
 
-        &.copy .material-icons {
-          font-size: 23px;
-        }
-
-        &.delete .material-icons {
-          font-size: 26px;
-        }
-
         .material-icons {
           display: inline-block;
           vertical-align: middle;
@@ -118,7 +108,34 @@
           width: 26px;
           line-height: 26px;
         }
+
+        &.copy .material-icons {
+          font-size: 23px;
+        }
+
+        &.edit .material-icons {
+          font-size: 23px;
+        }
+
+        &.download .material-icons {
+          font-size: 26px;
+        }
+
+        &.delete .material-icons {
+          font-size: 26px;
+        }
       }
+    }
+  }
+}
+
+.points-of-interest {
+  .poi {
+
+    .coordinates {
+      flex: 0 0 auto;
+      text-align: right;
+      // font-family: 'Ubuntu Mono', monospace;
     }
   }
 }

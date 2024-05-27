@@ -33,6 +33,30 @@
       </div>
     </ng-container>
 
+    <ng-container *ngIf="gpxTracks.length > 0;">
+      <ul class="gpx-tracks">
+        <li class="track" *ngFor="let gpx of gpxTracks">
+          <div class="index">
+            {{ gpx.index + 1 }}
+          </div>
+          <div class="name">
+            <input placeholder="Nom du tracé GPX" [(ngModel)]="gpx.name">
+          </div>
+          <div class="actions">
+            <button class="edit" title="Editer ce Tracé GPX">
+              <span class="material-icons">edit</span>
+            </button>
+            <button class="download" title="Télécharger ce Tracé GPX">
+              <span class="material-icons">download</span>
+            </button>
+            <button class="delete" title="Supprimer ce Tracé GPX" (click)="removeGpxTrack(gpx)">
+              <span class="material-icons">delete_forever</span>
+            </button>
+          </div>
+        </li>
+      </ul>
+    </ng-container>
+
     <ng-template #noPointOfInterestTemplate>
       <h1 class="instructions">
         Cliquez sur la carte pour ajouter/retirer des Points d'Intérêt

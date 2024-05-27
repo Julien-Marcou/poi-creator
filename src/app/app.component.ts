@@ -7,6 +7,13 @@ type PointOfInterest = {
   marker: google.maps.marker.AdvancedMarkerElement;
 };
 
+type Track = {
+  index: number;
+  name?: string;
+  masterPolyline: google.maps.Polyline;
+  elevationPolylines: Array<google.maps.Polyline>;
+};
+
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
@@ -18,6 +25,7 @@ export class AppComponent implements OnInit {
   @ViewChild('mapElement', {static: true}) private mapElement!: ElementRef<HTMLElement>;
 
   public pointsOfInterest: Array<PointOfInterest> = [];
+  public gpxTracks: Array<Track> = [];
   private map!: google.maps.Map;
 
   constructor(private readonly cd: ChangeDetectorRef) {}
@@ -108,6 +116,18 @@ export class AppComponent implements OnInit {
       if (index >= poiToRemove.index) {
         poi.index = index;
         poi.marker.content = new  google.maps.marker.PinElement({ glyph: (index + 1).toString() }).element;
+      }
+    });
+    this.cd.detectChanges();
+  }
+
+  public removeGpxTrack(trackToRemove: Track): void {
+    this.gpxTracks.splice(trackToRemove.index, 1);
+    trackToRemove.masterPolyline.setMap(null);
+    trackToRemove.elevationPolylines.forEach((polyline) => polyline.setMap(null));
+    this.gpxTracks.forEach((track, index) => {
+      if (index >= trackToRemove.index) {
+        track.index = index;
       }
     });
     this.cd.detectChanges();
@@ -247,6 +267,13 @@ export class AppComponent implements OnInit {
           strokeWeight: 3,
         }));
       }
+
+      this.gpxTracks.push({
+        index: this.gpxTracks.length,
+        masterPolyline: masterPolyline,
+        elevationPolylines: elevationPolylines,
+      });
+      this.cd.detectChanges();
     };
     reader.readAsText(file, 'UTF-8');
   }
