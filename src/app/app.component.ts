@@ -1,15 +1,17 @@
-import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 
 type PointOfInterest = {
   index: number;
   name?: string;
-  marker: google.maps.Marker;
+  position: google.maps.LatLng;
+  marker: google.maps.marker.AdvancedMarkerElement;
 };
 
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppComponent implements OnInit {
 
@@ -18,8 +20,11 @@ export class AppComponent implements OnInit {
   public pointsOfInterest: Array<PointOfInterest> = [];
   private map!: google.maps.Map;
 
+  constructor(private readonly cd: ChangeDetectorRef) {}
+
   public ngOnInit(): void {
     this.map = new google.maps.Map(this.mapElement.nativeElement, {
+      mapId: 'DEMO_MAP_ID',
       center: { lat: 46.4675751, lng: 5.8919042 },
       zoom: 11,
       clickableIcons: false,
@@ -73,44 +78,40 @@ export class AppComponent implements OnInit {
     const poi: PointOfInterest = {
       index: this.pointsOfInterest.length,
       name: name,
-      marker: new google.maps.Marker({
+      position: latLng,
+      marker: new google.maps.marker.AdvancedMarkerElement({
         zIndex: 1000000 - Math.trunc(latLng.lat() * 10000),
-        label: (this.pointsOfInterest.length + 1).toString(),
+        content: new  google.maps.marker.PinElement({ glyph: (this.pointsOfInterest.length + 1).toString() }).element,
         position: latLng,
         map: this.map,
-        draggable: true,
+        gmpDraggable: true,
       }),
     };
     poi.marker.addListener('click', () => {
       this.removePointOfInterest(poi);
     });
     this.pointsOfInterest.push(poi);
+    this.cd.detectChanges();
   }
 
   public removePointOfInterest(poiToRemove: PointOfInterest): void {
     this.pointsOfInterest.splice(poiToRemove.index, 1);
-    poiToRemove.marker.setMap(null);
+    poiToRemove.marker.map = null;
     this.pointsOfInterest.forEach((poi, index) => {
       if (index >= poiToRemove.index) {
         poi.index = index;
-        poi.marker.setLabel((index + 1).toString());
+        poi.marker.content = new  google.maps.marker.PinElement({ glyph: (index + 1).toString() }).element;
       }
     });
+    this.cd.detectChanges();
   }
 
   public exportPointsOfInterest(): void {
-    const pointsOfInterest = this.pointsOfInterest.map((poi) => {
-      const markerPosition = poi.marker.getPosition();
-      if (!markerPosition) {
-        console.error('Marker has no position');
-        return;
-      }
-      return {
-        name: poi.name,
-        latitude: markerPosition.lat(),
-        longitude: markerPosition.lng(),
-      };
-    });
+    const pointsOfInterest = this.pointsOfInterest.map((poi) => ({
+      name: poi.name,
+      latitude: poi.position.lat(),
+      longitude: poi.position.lng(),
+    }));
     const pointsOfInterestBlob = new Blob(
       [JSON.stringify(pointsOfInterest, null, 2)],
       {type: 'text/plain'},
@@ -274,12 +275,9 @@ export class AppComponent implements OnInit {
   }
 
   public copyPointOfInterestToClipboard(poi: PointOfInterest): void {
-    const markerPosition = poi.marker.getPosition();
-    if (!markerPosition) {
-      console.error('Marker has no position');
-      return;
-    }
-    navigator.clipboard.writeText(`${markerPosition.lat()}, ${markerPosition.lng()}`);
+    const lat = poi.position.lat();
+    const lng = poi.position.lng();
+    navigator.clipboard.writeText(`${lat}, ${lng}`);
   }
 
 }
