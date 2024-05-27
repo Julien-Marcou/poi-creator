@@ -10,11 +10,14 @@ type PointOfInterest = {
 type TrailPoint = {
   elevation: number;
   position: google.maps.LatLng;
+  time: Date;
 };
 
 type Track = {
   index: number;
-  name?: string;
+  filename?: string;
+  name: string;
+  time: string;
   points: Array<TrailPoint>;
   masterPolyline: google.maps.Polyline;
   elevationPolylines: Array<google.maps.Polyline>;
@@ -153,6 +156,32 @@ export class AppComponent implements OnInit {
     this.cd.detectChanges();
   }
 
+  public downloadGpxTrack(track: Track): void {
+    /* eslint-disable max-len */
+    const gpxContent = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.topografix.com/GPX/1/1" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <time>${track.time}</time>
+  </metadata>
+  <trk>
+    <name>${track.name}</name>
+    <trkseg>${track.points.map((point) => `
+      <trkpt lat="${this.round(point.position.lat(), 6)}" lon="${this.round(point.position.lng(), 6)}">
+        <ele>${point.elevation}</ele>
+        <time>${this.dateToGpxISO(point.time)}</time>
+      </trkpt>`).join('')}
+    </trkseg>
+  </trk>
+</gpx>
+`;
+    /* eslint-enable max-len */
+    const pointsOfInterestBlob = new Blob(
+      [gpxContent],
+      {type: 'text/plain'},
+    );
+    this.downloadBlob(pointsOfInterestBlob, track.filename ?? 'gpx_track.gpx');
+  }
+
   public exportPointsOfInterest(): void {
     const pointsOfInterest = this.pointsOfInterest.map((poi) => ({
       name: poi.name,
@@ -163,16 +192,10 @@ export class AppComponent implements OnInit {
       [JSON.stringify(pointsOfInterest, null, 2)],
       {type: 'text/plain'},
     );
-    const downloadLink = document.createElement('a');
-    downloadLink.setAttribute('href', URL.createObjectURL(pointsOfInterestBlob));
-    downloadLink.setAttribute('download', 'points-of-interest.json');
-    downloadLink.style.display = 'none';
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    document.body.removeChild(downloadLink);
+    this.downloadBlob(pointsOfInterestBlob, 'points_of_interest.json');
   }
 
-  public importsGpxFile(event: Event): void {
+  public importGpxFile(event: Event): void {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) {
       console.error('No file found');
@@ -192,21 +215,28 @@ export class AppComponent implements OnInit {
         return;
       }
 
+      const metadataTime = gpxDocument.querySelector('metadata > time')?.textContent ?? 'PUT_YOUR_TIME_HERE';
+      const trackName = gpxDocument.querySelector('trk > name')?.textContent ?? 'PUT_YOUR_NAME_HERE';
       const trackPoints = gpxDocument.getElementsByTagName('trkpt');
       const trailPoints: Array<TrailPoint> = [];
       for (const trackPoint of trackPoints) {
         const latitude = parseFloat(trackPoint.getAttribute('lat') ?? '0');
         const longitude = parseFloat(trackPoint.getAttribute('lon') ?? '0');
         const elevation = parseFloat(trackPoint.querySelector('ele')?.textContent ?? '0');
+        const time = new Date(trackPoint.querySelector('time')?.textContent ?? '');
         trailPoints.push({
           elevation: elevation,
           position: new google.maps.LatLng(latitude, longitude),
+          time: time,
         });
       }
 
       const masterPolyline = this.getMasterPolyline(trailPoints);
-      const track = {
+      const track: Track = {
         index: this.gpxTracks.length,
+        filename: file.name,
+        name: trackName,
+        time: metadataTime,
         points: trailPoints,
         masterPolyline: masterPolyline,
         elevationPolylines: this.getElevationPolylines(trailPoints),
@@ -222,7 +252,8 @@ export class AppComponent implements OnInit {
       masterPolyline.getPath().addListener('insert_at', (index: number) => {
         const newPosition = masterPolyline.getPath().getAt(index);
         const averageElevation = (trailPoints[index - 1].elevation + trailPoints[index].elevation) / 2;
-        trailPoints.splice(index, 0, { elevation: averageElevation, position: newPosition });
+        const averageTime = new Date((trailPoints[index - 1].time.getTime() + trailPoints[index].time.getTime()) / 2);
+        trailPoints.splice(index, 0, { elevation: averageElevation, position: newPosition, time: averageTime});
         updatePolylines();
       });
       masterPolyline.getPath().addListener('set_at', () => {
@@ -269,17 +300,12 @@ export class AppComponent implements OnInit {
     reader.readAsText(file, 'UTF-8');
   }
 
-  public copyPointOfInterestToClipboard(poi: PointOfInterest, round?: number, asXml?: boolean): void {
-    let lat = poi.position.lat;
-    let lng = poi.position.lng;
-    if (round !== undefined && round >= 0) {
-      const multiplier = Math.pow(10, round);
-      lat = Math.round(lat * multiplier) / multiplier;
-      lng = Math.round(lng * multiplier) / multiplier;
-    }
+  public copyPointOfInterestToClipboard(poi: PointOfInterest, asXml?: boolean): void {
+    const lat = poi.position.lat;
+    const lng = poi.position.lng;
 
     if (asXml) {
-      navigator.clipboard.writeText(`lat="${lat}" lng="${lng}"`);
+      navigator.clipboard.writeText(`lat="${this.round(lat)}" lng="${this.round(lng)}"`);
     }
     else {
       navigator.clipboard.writeText(`${lat}, ${lng}`);
@@ -383,6 +409,35 @@ export class AppComponent implements OnInit {
     }
 
     return elevationPolylines;
+  }
+
+  private downloadBlob(blob: Blob, filename: string): void {
+    const downloadLink = document.createElement('a');
+    downloadLink.setAttribute('href', URL.createObjectURL(blob));
+    downloadLink.setAttribute('download', filename);
+    downloadLink.style.display = 'none';
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+  }
+
+  private round(value: number, decimals = 6): number {
+    const multiplier = Math.pow(10, decimals);
+    return Math.round(value * multiplier) / multiplier;
+  }
+
+  private dateToGpxISO(date: Date): string {
+    const timeZoneOffset = -date.getTimezoneOffset();
+    const diff = timeZoneOffset >= 0 ? '+' : '-';
+
+    return date.getFullYear() +
+        '-' + `${date.getMonth() + 1}`.padStart(2, '0') +
+        '-' + `${date.getDate()}`.padStart(2, '0') +
+        'T' + `${date.getHours()}`.padStart(2, '0') +
+        ':' + `${date.getMinutes()}`.padStart(2, '0') +
+        ':' + `${date.getSeconds()}`.padStart(2, '0') +
+        diff + `${Math.floor(Math.abs(timeZoneOffset) / 60)}`.padStart(2, '0') +
+        ':' + `${Math.abs(timeZoneOffset) % 60}`.padStart(2, '0');
   }
 
 }
