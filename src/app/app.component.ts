@@ -168,7 +168,7 @@ export class AppComponent implements OnInit {
     <trkseg>${track.points.map((point) => `
       <trkpt lat="${this.round(point.position.lat(), 6)}" lon="${this.round(point.position.lng(), 6)}">
         <ele>${point.elevation}</ele>
-        <time>${this.dateToGpxISO(point.time)}</time>
+        <time>${point.time.toISOString()}</time>
       </trkpt>`).join('')}
     </trkseg>
   </trk>
@@ -424,20 +424,6 @@ export class AppComponent implements OnInit {
   private round(value: number, decimals = 6): number {
     const multiplier = Math.pow(10, decimals);
     return Math.round(value * multiplier) / multiplier;
-  }
-
-  private dateToGpxISO(date: Date): string {
-    const timeZoneOffset = -date.getTimezoneOffset();
-    const diff = timeZoneOffset >= 0 ? '+' : '-';
-
-    return date.getFullYear() +
-        '-' + `${date.getMonth() + 1}`.padStart(2, '0') +
-        '-' + `${date.getDate()}`.padStart(2, '0') +
-        'T' + `${date.getHours()}`.padStart(2, '0') +
-        ':' + `${date.getMinutes()}`.padStart(2, '0') +
-        ':' + `${date.getSeconds()}`.padStart(2, '0') +
-        diff + `${Math.floor(Math.abs(timeZoneOffset) / 60)}`.padStart(2, '0') +
-        ':' + `${Math.abs(timeZoneOffset) % 60}`.padStart(2, '0');
   }
 
 }
