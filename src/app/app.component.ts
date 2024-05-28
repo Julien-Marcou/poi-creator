@@ -305,7 +305,7 @@ export class AppComponent implements OnInit {
     const lng = poi.position.lng;
 
     if (asXml) {
-      navigator.clipboard.writeText(`lat="${this.round(lat)}" lng="${this.round(lng)}"`);
+      navigator.clipboard.writeText(`lat="${this.round(lat)}" lon="${this.round(lng)}"`);
     }
     else {
       navigator.clipboard.writeText(`${lat}, ${lng}`);
