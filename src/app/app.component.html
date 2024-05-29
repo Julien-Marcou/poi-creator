@@ -65,7 +65,7 @@
         <label class="button" for="upload-points-of-interest-file">
           Importer des Points d'Intérêt
         </label>
-        <input type="file" id="upload-points-of-interest-file" (change)="importPointsOfInterst($event)">
+        <input type="file" id="upload-points-of-interest-file" (change)="importPointsOfInterestFiles($event)" multiple>
       </div>
     </ng-template>
 
@@ -73,7 +73,7 @@
       <label class="button" for="upload-gpx-file">
         Importer un fichier GPX
       </label>
-      <input type="file" id="upload-gpx-file" (change)="importGpxFile($event)">
+      <input type="file" id="upload-gpx-file" (change)="importGpxFiles($event)" multiple>
     </div>
 
   </div>

@@ -195,12 +195,66 @@ export class AppComponent implements OnInit {
     this.downloadBlob(pointsOfInterestBlob, 'points_of_interest.json');
   }
 
-  public importGpxFile(event: Event): void {
-    const file = (event.target as HTMLInputElement).files?.[0];
-    if (!file) {
+  public importGpxFiles(event: Event): void {
+    const files = (event.target as HTMLInputElement).files;
+    if (!files) {
       console.error('No file found');
       return;
     }
+    for (const file of files) {
+      this.importOneGpxFile(file);
+    }
+  }
+
+  public importPointsOfInterestFiles(event: Event): void {
+    const files = (event.target as HTMLInputElement).files;
+    if (!files) {
+      console.error('No file found');
+      return;
+    }
+    for (const file of files) {
+      this.importOnePointsOfInterestFile(file);
+    }
+  }
+
+  public copyPointOfInterestToClipboard(poi: PointOfInterest, asXml?: boolean): void {
+    const lat = poi.position.lat;
+    const lng = poi.position.lng;
+
+    if (asXml) {
+      navigator.clipboard.writeText(`lat="${this.round(lat)}" lon="${this.round(lng)}"`);
+    }
+    else {
+      navigator.clipboard.writeText(`${lat}, ${lng}`);
+    }
+  }
+
+  private importOnePointsOfInterestFile(file: File): void {
+    const reader = new FileReader();
+    reader.onload = (progressEvent): void => {
+      try {
+        const result = progressEvent.target?.result?.toString();
+        if (!result) {
+          console.error('Reader has no result');
+          return;
+        }
+        const pointsOfInterest = JSON.parse(result);
+        if (Array.isArray(pointsOfInterest)) {
+          pointsOfInterest.forEach((poi) => {
+            if (poi.latitude && poi.longitude) {
+              this.addPointOfInterest(new google.maps.LatLng(poi.latitude, poi.longitude), poi.name);
+            }
+          });
+        }
+      }
+      catch (error) {
+        console.error(error);
+      }
+    };
+    reader.readAsText(file, 'UTF-8');
+  }
+
+  private importOneGpxFile(file: File): void {
     const reader = new FileReader();
     reader.onload = (progressEvent): void => {
       const result = progressEvent.target?.result?.toString();
@@ -268,48 +322,6 @@ export class AppComponent implements OnInit {
       this.cd.detectChanges();
     };
     reader.readAsText(file, 'UTF-8');
-  }
-
-  public importPointsOfInterst(event: Event): void {
-    const file = (event.target as HTMLInputElement).files?.[0];
-    if (!file) {
-      console.error('No file found');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (progressEvent): void => {
-      try {
-        const result = progressEvent.target?.result?.toString();
-        if (!result) {
-          console.error('Reader has no result');
-          return;
-        }
-        const pointsOfInterest = JSON.parse(result);
-        if (Array.isArray(pointsOfInterest)) {
-          pointsOfInterest.forEach((poi) => {
-            if (poi.latitude && poi.longitude) {
-              this.addPointOfInterest(new google.maps.LatLng(poi.latitude, poi.longitude), poi.name);
-            }
-          });
-        }
-      }
-      catch (error) {
-        console.error(error);
-      }
-    };
-    reader.readAsText(file, 'UTF-8');
-  }
-
-  public copyPointOfInterestToClipboard(poi: PointOfInterest, asXml?: boolean): void {
-    const lat = poi.position.lat;
-    const lng = poi.position.lng;
-
-    if (asXml) {
-      navigator.clipboard.writeText(`lat="${this.round(lat)}" lon="${this.round(lng)}"`);
-    }
-    else {
-      navigator.clipboard.writeText(`${lat}, ${lng}`);
-    }
   }
 
   private getMasterPolyline(trailPoints: Array<TrailPoint>): google.maps.Polyline {
