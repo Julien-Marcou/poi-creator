@@ -28,11 +28,11 @@ type Track = {
 
 @Component({
     selector: 'app-root',
+    standalone: true,
     templateUrl: './app.component.html',
     styleUrls: ['./app.component.scss'],
-    changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [FormsModule, DecimalPipe],
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppComponent implements OnInit {
 
