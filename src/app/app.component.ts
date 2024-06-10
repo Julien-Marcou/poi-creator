@@ -1,4 +1,6 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild } from '@angular/core';
+import { DecimalPipe } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 
 type PointOfInterest = {
   index: number;
@@ -25,10 +27,12 @@ type Track = {
 };
 
 @Component({
-  selector: 'app-root',
-  templateUrl: './app.component.html',
-  styleUrls: ['./app.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'app-root',
+    templateUrl: './app.component.html',
+    styleUrls: ['./app.component.scss'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true,
+    imports: [FormsModule, DecimalPipe],
 })
 export class AppComponent implements OnInit {
 
