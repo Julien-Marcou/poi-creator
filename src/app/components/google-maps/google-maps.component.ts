@@ -103,7 +103,7 @@ export class GoogleMapsComponent implements OnInit {
       position: { lat: latLng.lat(), lng: latLng.lng() },
       marker: new google.maps.marker.AdvancedMarkerElement({
         zIndex: 1000000 - Math.trunc(latLng.lat() * 10000),
-        content: new  google.maps.marker.PinElement({ glyph: (this.pointsOfInterest.length + 1).toString() }).element,
+        content: new google.maps.marker.PinElement({ glyph: (this.pointsOfInterest.length + 1).toString() }).element,
         position: latLng,
         map: this.map,
         gmpDraggable: true,
@@ -129,7 +129,7 @@ export class GoogleMapsComponent implements OnInit {
     this.pointsOfInterest.forEach((poi, index) => {
       if (index >= poiToRemove.index) {
         poi.index = index;
-        poi.marker.content = new  google.maps.marker.PinElement({ glyph: (index + 1).toString() }).element;
+        poi.marker.content = new google.maps.marker.PinElement({ glyph: (index + 1).toString() }).element;
       }
     });
     this.cd.detectChanges();
@@ -301,12 +301,14 @@ export class GoogleMapsComponent implements OnInit {
         isEditing: false,
       };
 
+      // rebuild the elevation polylines from the trail points
       const updatePolylines = (): void => {
         track.elevationPolylines.forEach((polyline) => polyline.setMap(null));
         track.elevationPolylines = this.getElevationPolylines(trailPoints);
         this.cd.detectChanges();
       };
 
+      // insert average point between two trail points
       masterPolyline.getPath().addListener('insert_at', (index: number) => {
         const newPosition = masterPolyline.getPath().getAt(index);
         const averageElevation = (trailPoints[index - 1].elevation + trailPoints[index].elevation) / 2;
@@ -314,12 +316,37 @@ export class GoogleMapsComponent implements OnInit {
         trailPoints.splice(index, 0, { elevation: averageElevation, position: newPosition, time: averageTime});
         updatePolylines();
       });
+
+      // remove an existing trail point
+      masterPolyline.getPath().addListener('remove_at', (index: number) => {
+        console.log('removed at', index);
+        trailPoints.splice(index, 1);
+        updatePolylines();
+      });
+
+      // move an existing trail point
       masterPolyline.getPath().addListener('set_at', () => {
         const positions = masterPolyline.getPath().getArray();
         positions.forEach((position, index) => {
           trailPoints[index].position = position;
         });
         updatePolylines();
+      });
+
+      // right click on the polyline to remove closest trail point
+      masterPolyline.addListener('contextmenu', (event: google.maps.PolyMouseEvent) => {
+        const clickPosition = event.latLng as google.maps.LatLng;
+        let closestIndex = 0;
+        let closestPoint = trailPoints[closestIndex];
+        trailPoints.forEach((currentPoint, currentIndex) => {
+          const closestPointDistance = google.maps.geometry.spherical.computeDistanceBetween(clickPosition, closestPoint.position);
+          const currentPointDistance = google.maps.geometry.spherical.computeDistanceBetween(clickPosition, currentPoint.position);
+          if (currentPointDistance < closestPointDistance) {
+            closestIndex = currentIndex;
+            closestPoint = currentPoint;
+          }
+        });
+        masterPolyline.getPath().removeAt(closestIndex);
       });
 
       this.gpxTracks.push(track);
