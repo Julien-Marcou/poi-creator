@@ -148,6 +148,21 @@ export class GoogleMapsComponent implements OnInit {
     this.cd.detectChanges();
   }
 
+  public simplifyGpxTrack(track: Track): void {
+    if (track.isEditing) {
+      this.toggleGpxEdition(track);
+    }
+    track.masterPolyline.setMap(null);
+    track.elevationPolylines.forEach((polyline) => polyline.setMap(null));
+    for (let i = track.points.length - 2; i > 0; i -= 2) {
+      track.points.splice(i, 1);
+    }
+    track.masterPolyline = this.getMasterPolyline(track.points);
+    track.elevationPolylines = this.getElevationPolylines(track.points);
+    this.addTrackEventListeners(track);
+    this.cd.detectChanges();
+  }
+
   public removeGpxTrack(trackToRemove: Track): void {
     this.gpxTracks.splice(trackToRemove.index, 1);
     trackToRemove.masterPolyline.setMap(null);
@@ -300,59 +315,61 @@ export class GoogleMapsComponent implements OnInit {
         elevationPolylines: this.getElevationPolylines(trailPoints),
         isEditing: false,
       };
-
-      // rebuild the elevation polylines from the trail points
-      const updatePolylines = (): void => {
-        track.elevationPolylines.forEach((polyline) => polyline.setMap(null));
-        track.elevationPolylines = this.getElevationPolylines(trailPoints);
-        this.cd.detectChanges();
-      };
-
-      // insert average point between two trail points
-      masterPolyline.getPath().addListener('insert_at', (index: number) => {
-        const newPosition = masterPolyline.getPath().getAt(index);
-        const averageElevation = (trailPoints[index - 1].elevation + trailPoints[index].elevation) / 2;
-        const averageTime = new Date((trailPoints[index - 1].time.getTime() + trailPoints[index].time.getTime()) / 2);
-        trailPoints.splice(index, 0, { elevation: averageElevation, position: newPosition, time: averageTime});
-        updatePolylines();
-      });
-
-      // remove an existing trail point
-      masterPolyline.getPath().addListener('remove_at', (index: number) => {
-        console.log('removed at', index);
-        trailPoints.splice(index, 1);
-        updatePolylines();
-      });
-
-      // move an existing trail point
-      masterPolyline.getPath().addListener('set_at', () => {
-        const positions = masterPolyline.getPath().getArray();
-        positions.forEach((position, index) => {
-          trailPoints[index].position = position;
-        });
-        updatePolylines();
-      });
-
-      // right click on the polyline to remove closest trail point
-      masterPolyline.addListener('contextmenu', (event: google.maps.PolyMouseEvent) => {
-        const clickPosition = event.latLng as google.maps.LatLng;
-        let closestIndex = 0;
-        let closestPoint = trailPoints[closestIndex];
-        trailPoints.forEach((currentPoint, currentIndex) => {
-          const closestPointDistance = google.maps.geometry.spherical.computeDistanceBetween(clickPosition, closestPoint.position);
-          const currentPointDistance = google.maps.geometry.spherical.computeDistanceBetween(clickPosition, currentPoint.position);
-          if (currentPointDistance < closestPointDistance) {
-            closestIndex = currentIndex;
-            closestPoint = currentPoint;
-          }
-        });
-        masterPolyline.getPath().removeAt(closestIndex);
-      });
+      this.addTrackEventListeners(track);
 
       this.gpxTracks.push(track);
       this.cd.detectChanges();
     };
     reader.readAsText(file, 'UTF-8');
+  }
+
+  private addTrackEventListeners(track: Track): void {
+    // rebuild the elevation polylines from the trail points
+    const updatePolylines = (): void => {
+      track.elevationPolylines.forEach((polyline) => polyline.setMap(null));
+      track.elevationPolylines = this.getElevationPolylines(track.points);
+      this.cd.detectChanges();
+    };
+
+    // insert average point between two trail points
+    track.masterPolyline.getPath().addListener('insert_at', (index: number) => {
+      const newPosition = track.masterPolyline.getPath().getAt(index);
+      const averageElevation = (track.points[index - 1].elevation + track.points[index].elevation) / 2;
+      const averageTime = new Date((track.points[index - 1].time.getTime() + track.points[index].time.getTime()) / 2);
+      track.points.splice(index, 0, { elevation: averageElevation, position: newPosition, time: averageTime});
+      updatePolylines();
+    });
+
+    // remove an existing trail point
+    track.masterPolyline.getPath().addListener('remove_at', (index: number) => {
+      track.points.splice(index, 1);
+      updatePolylines();
+    });
+
+    // move an existing trail point
+    track.masterPolyline.getPath().addListener('set_at', () => {
+      const positions = track.masterPolyline.getPath().getArray();
+      positions.forEach((position, index) => {
+        track.points[index].position = position;
+      });
+      updatePolylines();
+    });
+
+    // right click on the polyline to remove closest trail point
+    track.masterPolyline.addListener('contextmenu', (event: google.maps.PolyMouseEvent) => {
+      const clickPosition = event.latLng as google.maps.LatLng;
+      let closestIndex = 0;
+      let closestPoint = track.points[closestIndex];
+      track.points.forEach((currentPoint, currentIndex) => {
+        const closestPointDistance = google.maps.geometry.spherical.computeDistanceBetween(clickPosition, closestPoint.position);
+        const currentPointDistance = google.maps.geometry.spherical.computeDistanceBetween(clickPosition, currentPoint.position);
+        if (currentPointDistance < closestPointDistance) {
+          closestIndex = currentIndex;
+          closestPoint = currentPoint;
+        }
+      });
+      track.masterPolyline.getPath().removeAt(closestIndex);
+    });
   }
 
   private getMasterPolyline(trailPoints: Array<TrailPoint>): google.maps.Polyline {
@@ -407,7 +424,7 @@ export class GoogleMapsComponent implements OnInit {
       if (trailPoint.elevation < minElevation) {
         minElevation = trailPoint.elevation;
       }
-      else if (trailPoint.elevation > maxElevation) {
+      if (trailPoint.elevation > maxElevation) {
         maxElevation = trailPoint.elevation;
       }
     }
@@ -415,7 +432,7 @@ export class GoogleMapsComponent implements OnInit {
     const elevationPolylines = [];
     for (let i = 1; i < trailPoints.length; i++) {
       const averageElevation = (trailPoints[i - 1].elevation + trailPoints[i].elevation) / 2;
-      const step = (averageElevation - minElevation) * (100 / (maxElevation - minElevation));
+      const step = maxElevation === minElevation ? 50 : (averageElevation - minElevation) * (100 / (maxElevation - minElevation));
       let minColor = gradient[0];
       let maxColor = gradient[gradient.length - 1];
       for (const gradientColor of gradient) {

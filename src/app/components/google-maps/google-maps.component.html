@@ -59,6 +59,9 @@
             <button class="edit" title="Editer ce Tracé GPX" (click)="toggleGpxEdition(gpx)">
               <span class="material-icons">{{ gpx.isEditing ? 'edit_off' : 'edit' }}</span>
             </button>
+            <button class="simplify" title="Simplifier ce Tracé GPX (supprime 1 point sur 2)" (click)="simplifyGpxTrack(gpx)">
+              <span class="material-icons">merge</span>
+            </button>
             <button class="download" title="Télécharger ce Tracé GPX" (click)="downloadGpxTrack(gpx)">
               <span class="material-icons">download</span>
             </button>
